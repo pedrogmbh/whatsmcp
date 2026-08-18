@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "whatsmcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "pattern": "whatsmcp.unfld.dev",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    // Comma-separated Z-API categories to register as tools; "*" registers all.
+    // The three zapi_* meta-tools ignore this filter and are always available.
+    "ZAPI_TOOLSETS": "*"
+  }
+  // Secrets (never in this file): MCP_AUTH_TOKEN, ZAPI_INSTANCE_ID,
+  // ZAPI_INSTANCE_TOKEN, ZAPI_CLIENT_TOKEN. Local values live in .dev.vars.
+}
