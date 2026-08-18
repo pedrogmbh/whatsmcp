@@ -34,6 +34,7 @@ export async function inboxTestSchema(): Promise<string> {
   const parts = await Promise.all([
     Bun.file("migrations/0001_events.sql").text(),
     Bun.file("migrations/0002_chats.sql").text(),
+    Bun.file("migrations/0003_chat_lid.sql").text(),
   ]);
   return parts.join("\n");
 }

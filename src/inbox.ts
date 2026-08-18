@@ -32,10 +32,15 @@ export const WEBHOOK_PATH_BY_KIND: Record<WebhookKind, string> = {
 export const HISTORY_LIMIT_CAP = 50;
 
 const META_KEYS = new Set([
+  "adContext",
   "broadcast",
+  "chatLid",
   "chatName",
   "connectedPhone",
   "error",
+  "externalAdReply",
+  "forwarded",
+  "fromApi",
   "fromMe",
   "ids",
   "instanceId",
@@ -44,6 +49,8 @@ const META_KEYS = new Set([
   "isGroupAnnouncement",
   "isNewsletter",
   "isStatusReply",
+  "lid",
+  "messageExpirationSeconds",
   "messageId",
   "momment",
   "participantLid",
@@ -59,6 +66,27 @@ const META_KEYS = new Set([
   "waitingMessage",
   "zaapId",
 ]);
+
+const MESSAGE_KIND_KEYS = [
+  "text",
+  "image",
+  "video",
+  "audio",
+  "document",
+  "sticker",
+  "gif",
+  "ptv",
+  "location",
+  "contact",
+  "contacts",
+  "reaction",
+  "link",
+  "buttons",
+  "list",
+  "poll",
+  "product",
+  "catalog",
+] as const;
 
 export interface InboxEvent {
   id?: number;
@@ -125,12 +153,14 @@ function asNumber(value: unknown): number {
   return 0;
 }
 
-function firstString(record: Record<string, unknown>, keys: string[]): string {
-  for (const key of keys) {
-    const value = asString(record[key]);
-    if (value) return value;
-  }
-  return "";
+function isPlaceholderName(value: string): boolean {
+  return /^(?:\d+|true|false)$/i.test(value);
+}
+
+function senderNameFrom(body: Record<string, unknown>): string {
+  const sender = asString(body.senderName).trim();
+  if (sender && !isPlaceholderName(sender)) return sender;
+  return asString(body.chatName).trim();
 }
 
 function messageIdFrom(body: Record<string, unknown>): string {
@@ -147,6 +177,9 @@ function messageIdFrom(body: Record<string, unknown>): string {
 }
 
 function messageKindFrom(body: Record<string, unknown>): string {
+  for (const key of MESSAGE_KIND_KEYS) {
+    if (asRecord(body[key])) return key;
+  }
   for (const [key, value] of Object.entries(body)) {
     if (META_KEYS.has(key)) continue;
     if (value !== null && typeof value === "object") return key;
@@ -210,14 +243,23 @@ function extractText(kind: WebhookKind, body: Record<string, unknown>): string {
     push(reaction.emoji);
   }
 
-  push(body.error);
-  push(body.status);
-  push(nested("presence")?.status);
-  push(body.lastSeen);
-  push(body.connected);
-  push(body.disconnected);
-  push(body.reason);
-  push(body.message);
+  if (
+    kind === "status" ||
+    kind === "presence" ||
+    kind === "connect" ||
+    kind === "disconnect"
+  ) {
+    push(body.error);
+    push(body.status);
+    push(nested("presence")?.status);
+    push(body.lastSeen);
+    push(body.connected);
+    push(body.disconnected);
+    push(body.reason);
+    push(body.message);
+  } else {
+    push(body.error);
+  }
 
   if (kind === "status" && Array.isArray(body.ids)) {
     push(body.ids.map((id) => asString(id)).filter(Boolean).join(" "));
@@ -234,11 +276,11 @@ export function normalizeEvent(
   return {
     kind,
     receivedAt,
-    moment: asNumber(body.momment),
+    moment: asNumber(body.momment) || asNumber(body.lastSeen) || receivedAt,
     messageId: messageIdFrom(body),
     phone: asString(body.phone),
     chatName: asString(body.chatName),
-    senderName: firstString(body, ["senderName", "chatName"]),
+    senderName: senderNameFrom(body),
     fromMe: asBool(body.fromMe),
     isGroup: asBool(body.isGroup),
     isEdit: asBool(body.isEdit) === true,
@@ -350,8 +392,15 @@ export async function listEvents(
     values.push(filter.since);
   }
   if (filter.tag !== undefined && filter.tag !== "") {
-    clauses.push("phone IN (SELECT phone FROM chat_tags WHERE tag = ?)");
-    values.push(filter.tag);
+    clauses.push(
+      `(phone IN (SELECT phone FROM chat_tags WHERE tag = ?)
+        OR phone IN (
+          SELECT lid FROM chats
+          WHERE lid IS NOT NULL AND lid != ''
+            AND phone IN (SELECT phone FROM chat_tags WHERE tag = ?)
+        ))`,
+    );
+    values.push(filter.tag, filter.tag);
   }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
@@ -410,8 +459,15 @@ export async function searchEvents(
     values.push(filter.kind);
   }
   if (filter.tag !== undefined && filter.tag !== "") {
-    clauses.push("events.phone IN (SELECT phone FROM chat_tags WHERE tag = ?)");
-    values.push(filter.tag);
+    clauses.push(
+      `(events.phone IN (SELECT phone FROM chat_tags WHERE tag = ?)
+        OR events.phone IN (
+          SELECT lid FROM chats
+          WHERE lid IS NOT NULL AND lid != ''
+            AND phone IN (SELECT phone FROM chat_tags WHERE tag = ?)
+        ))`,
+    );
+    values.push(filter.tag, filter.tag);
   }
 
   const limit = clampLimit(filter.limit);

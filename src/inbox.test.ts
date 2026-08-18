@@ -85,7 +85,49 @@ describe("normalizeEvent", () => {
     expect(event.status).toBe("RECEIVED");
     expect(event.moment).toBe(1632228638000);
     expect(event.text).toContain("teste");
+    expect(event.text).not.toContain("RECEIVED");
     expect(event.payload).toContain("MSG-TEXT-1");
+  });
+
+  test("ignores adContext and placeholder senderName on live ReceivedCallback", () => {
+    const event = normalizeEvent(
+      "received",
+      {
+        isStatusReply: false,
+        chatLid: "27741764198600@lid",
+        chatName: "Augusto Viana",
+        senderName: "1",
+        phone: "555391643188",
+        messageId: "AC8B70715DE924DFB8E31CCA3F7FA722",
+        fromMe: false,
+        momment: 1787071219000,
+        status: "RECEIVED",
+        type: "ReceivedCallback",
+        adContext: { conversionSource: "", conversionDelaySeconds: 0 },
+        text: { message: "..." },
+      },
+      1787071219975,
+    );
+    expect(event.messageKind).toBe("text");
+    expect(event.senderName).toBe("Augusto Viana");
+    expect(event.text).toBe("...");
+    expect(event.moment).toBe(1787071219000);
+  });
+
+  test("presence without momment uses receivedAt", () => {
+    const event = normalizeEvent(
+      "presence",
+      {
+        type: "PresenceChatCallback",
+        phone: "240818984087766",
+        status: "UNAVAILABLE",
+        lastSeen: null,
+      },
+      1787071218793,
+    );
+    expect(event.moment).toBe(1787071218793);
+    expect(event.text).toBe("UNAVAILABLE");
+    expect(event.messageKind).toBe("");
   });
 
   test("keeps messages sent by this number (fromMe)", () => {

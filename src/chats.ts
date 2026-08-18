@@ -2,6 +2,7 @@ import { requestZapi } from "./zapi";
 
 export interface ChatSnapshot {
   phone: string;
+  lid: string;
   name: string;
   tags: string[];
   unread: number | null;
@@ -47,25 +48,68 @@ function flag(value: boolean | null): number | null {
   return value ? 1 : 0;
 }
 
+export function parseLid(value: unknown): string {
+  const raw = asString(value).trim();
+  if (!raw) return "";
+  return raw.replace(/@lid$/i, "");
+}
+
+function tagId(value: unknown): string {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    return asString(record.id || record.tag).trim();
+  }
+  return asString(value).trim();
+}
+
 /** Z-API `tags` is an optional array of string (or numeric) filter ids. */
 export function parseTags(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
+  const items = Array.isArray(value)
+    ? value
+    : typeof value === "string" && value.includes(",")
+      ? value.split(",")
+      : [];
   const tags: string[] = [];
-  for (const item of value) {
-    const id = asString(item).trim();
+  for (const item of items) {
+    const id = tagId(item);
     if (id) tags.push(id);
   }
   return [...new Set(tags)];
+}
+
+export function isZapiErrorBody(raw: Record<string, unknown>): boolean {
+  if (raw.error !== undefined && raw.error !== null && raw.error !== "") {
+    return true;
+  }
+  if (raw.statusCode !== undefined && raw.statusCode !== null) return true;
+  const message = asString(raw.message).toLowerCase();
+  return message.includes("phone not exists") || message.includes("not found");
+}
+
+export function isUsefulChat(chat: ChatSnapshot): boolean {
+  return Boolean(
+    chat.name ||
+      chat.lid ||
+      chat.tags.length > 0 ||
+      chat.unread !== null ||
+      chat.pinned !== null ||
+      chat.archived !== null ||
+      chat.muted !== null ||
+      chat.isSpam !== null ||
+      chat.isGroup !== null,
+  );
 }
 
 export function parseChatSnapshot(
   raw: Record<string, unknown>,
   updatedAt = Date.now(),
 ): ChatSnapshot | null {
+  if (isZapiErrorBody(raw)) return null;
   const phone = asString(raw.phone).trim();
-  if (!phone) return null;
+  if (!phone || phone === "0") return null;
   return {
     phone,
+    lid: parseLid(raw.lid) || parseLid(raw.chatLid),
     name: asString(raw.name) || asString(raw.chatName),
     tags: parseTags(raw.tags),
     unread: asNumber(raw.messagesUnread) ?? asNumber(raw.unread),
@@ -78,6 +122,19 @@ export function parseChatSnapshot(
   };
 }
 
+export function chatSnapshotFromResponse(
+  raw: unknown,
+  fallbackPhone?: string,
+  updatedAt = Date.now(),
+): ChatSnapshot | null {
+  const record = Array.isArray(raw) ? asRecord(raw[0]) : asRecord(raw);
+  if (!record || isZapiErrorBody(record)) return null;
+  if (!asString(record.phone) && fallbackPhone) record.phone = fallbackPhone;
+  const snapshot = parseChatSnapshot(record, updatedAt);
+  if (!snapshot || !isUsefulChat(snapshot)) return null;
+  return snapshot;
+}
+
 export async function upsertChatSnapshot(
   db: D1Database,
   chat: ChatSnapshot,
@@ -85,9 +142,10 @@ export async function upsertChatSnapshot(
   await db
     .prepare(
       `INSERT INTO chats (
-        phone, name, unread, pinned, archived, muted, is_spam, is_group, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        phone, lid, name, unread, pinned, archived, muted, is_spam, is_group, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(phone) DO UPDATE SET
+        lid = COALESCE(NULLIF(excluded.lid, ''), chats.lid),
         name = excluded.name,
         unread = excluded.unread,
         pinned = excluded.pinned,
@@ -99,6 +157,7 @@ export async function upsertChatSnapshot(
     )
     .bind(
       chat.phone,
+      chat.lid,
       chat.name,
       chat.unread,
       flag(chat.pinned),
@@ -152,6 +211,26 @@ export async function tagsByPhones(
   return map;
 }
 
+export async function resolveChatPhone(
+  db: D1Database,
+  phone: string,
+): Promise<string> {
+  const trimmed = phone.trim();
+  if (!trimmed) return trimmed;
+  const lid = parseLid(trimmed);
+  const byPhone = await db
+    .prepare("SELECT phone FROM chats WHERE phone = ?")
+    .bind(trimmed)
+    .first<{ phone: string }>();
+  if (byPhone?.phone) return byPhone.phone;
+  if (!lid) return trimmed;
+  const byLid = await db
+    .prepare("SELECT phone FROM chats WHERE lid = ?")
+    .bind(lid)
+    .first<{ phone: string }>();
+  return byLid?.phone ?? trimmed;
+}
+
 export async function refreshChatSnapshot(
   env: Env,
   phone: string,
@@ -164,10 +243,7 @@ export async function refreshChatSnapshot(
       method: "GET",
       path: `/chats/${encodeURIComponent(trimmed)}`,
     });
-    const record = Array.isArray(raw) ? asRecord(raw[0]) : asRecord(raw);
-    if (!record) return;
-    if (!asString(record.phone)) record.phone = trimmed;
-    const snapshot = parseChatSnapshot(record);
+    const snapshot = chatSnapshotFromResponse(raw, trimmed);
     if (snapshot) await upsertChatSnapshot(env.DB, snapshot);
   } catch {
     // Webhook 200 must not depend on GET /chats/{phone}.
@@ -191,9 +267,7 @@ export async function syncChatsFromZapi(
     if (rows.length === 0) break;
     pages += 1;
     for (const row of rows) {
-      const record = asRecord(row);
-      if (!record) continue;
-      const snapshot = parseChatSnapshot(record);
+      const snapshot = chatSnapshotFromResponse(row);
       if (!snapshot) continue;
       await upsertChatSnapshot(env.DB, snapshot);
       chats += 1;

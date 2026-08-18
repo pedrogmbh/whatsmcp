@@ -86,7 +86,7 @@ Do not drop `fromMe` received events — they are the conversation side the agen
 
 Events live in D1 `events` (indexed + FTS). Media URLs from Z-API expire in 30 days; v1 does not copy them to R2.
 
-`GET /chats` and `GET /chats/{phone}` may include an optional `tags` array of string ids (WhatsApp Business etiquetas / filter indexes; often numeric strings). Official docs omit this field; live responses include it. Webhooks do not. Snapshot chats in `chats` + `chat_tags` (not stamped on each event). Filter with `whatsmcp_history_list` `tag=`. Call `whatsmcp_chats_sync` to page `/chats`, or wait for a webhook (background `GET /chats/{phone}`). Resolve names with `zapi_business_get_tags`.
+`GET /chats` and `GET /chats/{phone}` may include an optional `tags` array of string ids (WhatsApp Business etiquetas / filter indexes; often numeric strings). A chat can have many tags; they live in `chat_tags` (one row per id). Official docs omit `tags`; live responses include it. Webhooks do not. Snapshot chats in `chats` + `chat_tags` (not stamped on each event). `chats.lid` is the WhatsApp LID (`27741764198600@lid` stored without the suffix) — presence webhooks often send that as `phone`. Filter with `whatsmcp_history_list` `tag=`. Call `whatsmcp_chats_sync` to page `/chats`, or wait for a received/sent webhook (background `GET /chats/{phone}`). Do not snapshot presence/connect phones. Resolve names with `zapi_business_get_tags`.
 
 ## MCP metadata
 

@@ -1,6 +1,8 @@
 import { isWebhookAuthorized, unauthorized } from "./auth";
-import { refreshChatSnapshot } from "./chats";
+import { refreshChatSnapshot, resolveChatPhone } from "./chats";
 import { insertEvent, normalizeEvent, WEBHOOK_PATHS } from "./inbox";
+
+const CHAT_REFRESH_KINDS = new Set(["received", "sent"]);
 
 export async function handleWebhook(
   request: Request,
@@ -31,8 +33,9 @@ export async function handleWebhook(
   }
 
   const event = normalizeEvent(kind, body as Record<string, unknown>);
+  event.phone = await resolveChatPhone(env.DB, event.phone);
   await insertEvent(env.DB, event);
-  if (event.phone) {
+  if (event.phone && CHAT_REFRESH_KINDS.has(event.kind)) {
     ctx.waitUntil(refreshChatSnapshot(env, event.phone));
   }
   return Response.json({ ok: true });
