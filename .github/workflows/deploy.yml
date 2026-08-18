@@ -29,6 +29,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bunx wrangler d1 migrations apply whatsmcp --remote
+
       # CLOUDFLARE_API_KEY is an API token with Workers edit, not Zone
       # routes. `wrangler deploy` uploads the script then fails attaching
       # whatsmcp.unfld.dev (error 10000). Version upload + deploy updates
@@ -39,8 +45,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-
-          bunx wrangler d1 migrations apply whatsmcp --remote
 
           bunx wrangler versions upload --keep-vars --message "${GITHUB_SHA}"
 
