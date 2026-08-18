@@ -35,6 +35,8 @@ export async function inboxTestSchema(): Promise<string> {
     Bun.file("migrations/0001_events.sql").text(),
     Bun.file("migrations/0002_chats.sql").text(),
     Bun.file("migrations/0003_chat_lid.sql").text(),
+    Bun.file("migrations/0004_media_url.sql").text(),
+    Bun.file("migrations/0005_timestamps.sql").text(),
   ]);
   return parts.join("\n");
 }

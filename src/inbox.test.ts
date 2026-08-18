@@ -142,10 +142,40 @@ describe("normalizeEvent", () => {
     expect(event.text).toContain("I sent this");
   });
 
-  test("extracts image caption and message kind", () => {
+  test("extracts image caption, kind, and media url", () => {
     const event = normalizeEvent("received", IMAGE_RECEIVED);
     expect(event.messageKind).toBe("image");
     expect(event.text).toContain("look at this");
+    expect(event.mediaUrl).toBe("https://example.com/photo.jpg");
+  });
+
+  test("extracts document and audio urls", () => {
+    const document = normalizeEvent("received", {
+      ...TEXT_RECEIVED,
+      messageId: "MSG-DOC-1",
+      text: undefined,
+      document: {
+        documentUrl: "https://example.com/file.pdf",
+        fileName: "file.pdf",
+        mimeType: "application/pdf",
+      },
+    });
+    expect(document.messageKind).toBe("document");
+    expect(document.mediaUrl).toBe("https://example.com/file.pdf");
+    expect(document.text).toContain("file.pdf");
+
+    const audio = normalizeEvent("received", {
+      ...TEXT_RECEIVED,
+      messageId: "MSG-AUD-1",
+      text: undefined,
+      audio: {
+        audioUrl: "https://example.com/voice.ogg",
+        mimeType: "audio/ogg",
+      },
+    });
+    expect(audio.messageKind).toBe("audio");
+    expect(audio.mediaUrl).toBe("https://example.com/voice.ogg");
+    expect(audio.text).not.toContain("https://");
   });
 
   test("uses the first status id as messageId", () => {
@@ -175,6 +205,14 @@ describe("inbox D1", () => {
     expect(listed).toHaveLength(1);
     expect(listed[0]?.text).toContain("teste");
     expect(listed[0]?.id).toBeGreaterThan(0);
+
+    const stamps = await d1
+      .prepare("SELECT received_at, created_at, updated_at FROM events WHERE id = ?")
+      .bind(listed[0]!.id)
+      .first<{ received_at: number; created_at: number; updated_at: number }>();
+    expect(stamps?.created_at).toBe(10);
+    expect(stamps?.updated_at).toBe(10);
+    expect(stamps?.received_at).toBe(10);
   });
 
   test("get by messageId and search via FTS", async () => {

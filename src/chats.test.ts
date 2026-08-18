@@ -106,16 +106,22 @@ describe("chatSnapshotFromResponse", () => {
 describe("upsertChatSnapshot", () => {
   test("replaces tags on restamp", async () => {
     const db = createMemoryD1(SCHEMA);
-    const first = parseChatSnapshot({
-      phone: "5544999999999",
-      name: "Bacteria",
-      tags: ["1", "2"],
-    });
-    const second = parseChatSnapshot({
-      phone: "5544999999999",
-      name: "Bacteria",
-      tags: ["3"],
-    });
+    const first = parseChatSnapshot(
+      {
+        phone: "5544999999999",
+        name: "Bacteria",
+        tags: ["1", "2"],
+      },
+      1_000,
+    );
+    const second = parseChatSnapshot(
+      {
+        phone: "5544999999999",
+        name: "Bacteria",
+        tags: ["3"],
+      },
+      2_000,
+    );
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();
     await upsertChatSnapshot(db, first!);
@@ -126,6 +132,13 @@ describe("upsertChatSnapshot", () => {
       .bind("5544999999999")
       .all<{ tag: string }>();
     expect((tags.results ?? []).map((row) => row.tag)).toEqual(["3"]);
+
+    const times = await db
+      .prepare("SELECT created_at, updated_at FROM chats WHERE phone = ?")
+      .bind("5544999999999")
+      .first<{ created_at: number; updated_at: number }>();
+    expect(times?.created_at).toBe(first!.updatedAt);
+    expect(times?.updated_at).toBe(second!.updatedAt);
   });
 
   test("keeps multiple tags on one chat", async () => {

@@ -104,6 +104,7 @@ export interface InboxEvent {
   messageKind: string;
   status: string;
   text: string;
+  mediaUrl: string;
   payload: string;
 }
 
@@ -176,6 +177,28 @@ function messageIdFrom(body: Record<string, unknown>): string {
   return asString(body.zaapId);
 }
 
+const MEDIA_URL_KEYS: Record<string, string[]> = {
+  image: ["imageUrl", "url"],
+  video: ["videoUrl", "url"],
+  gif: ["gifUrl", "videoUrl", "url"],
+  ptv: ["ptvUrl", "videoUrl", "url"],
+  sticker: ["stickerUrl", "url"],
+  audio: ["audioUrl", "url"],
+  document: ["documentUrl", "url"],
+};
+
+export function extractMediaUrl(body: Record<string, unknown>): string {
+  for (const [kind, keys] of Object.entries(MEDIA_URL_KEYS)) {
+    const nested = asRecord(body[kind]);
+    if (!nested) continue;
+    for (const key of keys) {
+      const url = asString(nested[key]).trim();
+      if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    }
+  }
+  return "";
+}
+
 function messageKindFrom(body: Record<string, unknown>): string {
   for (const key of MESSAGE_KIND_KEYS) {
     if (asRecord(body[key])) return key;
@@ -219,7 +242,6 @@ function extractText(kind: WebhookKind, body: Record<string, unknown>): string {
   const audio = nested("audio");
   if (audio) {
     push(audio.caption);
-    push(audio.audioUrl ?? audio.url);
   }
 
   const location = nested("location");
@@ -288,6 +310,7 @@ export function normalizeEvent(
     messageKind: messageKindFrom(body),
     status: asString(body.status),
     text: extractText(kind, body),
+    mediaUrl: extractMediaUrl(body),
     payload: JSON.stringify(body),
   };
 }
@@ -329,12 +352,14 @@ function mapRow(row: Record<string, unknown>): InboxEvent {
     messageKind: asString(row.message_kind),
     status: asString(row.status),
     text: asString(row.text),
+    mediaUrl: asString(row.media_url),
     payload: asString(row.payload),
   };
 }
 
 const SELECT_COLUMNS = `id, kind, received_at, moment, message_id, phone, chat_name,
-  sender_name, from_me, is_group, is_edit, event_type, message_kind, status, text, payload`;
+  sender_name, from_me, is_group, is_edit, event_type, message_kind, status, text,
+  media_url, payload`;
 
 export async function insertEvent(
   db: D1Database,
@@ -344,8 +369,9 @@ export async function insertEvent(
     .prepare(
       `INSERT OR IGNORE INTO events (
         kind, received_at, moment, message_id, phone, chat_name, sender_name,
-        from_me, is_group, is_edit, event_type, message_kind, status, text, payload
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        from_me, is_group, is_edit, event_type, message_kind, status, text,
+        media_url, payload, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       event.kind,
@@ -362,7 +388,10 @@ export async function insertEvent(
       event.messageKind,
       event.status,
       event.text,
+      event.mediaUrl,
       event.payload,
+      event.receivedAt,
+      event.receivedAt,
     )
     .run();
   return { inserted: (result.meta.changes ?? 0) > 0 };
@@ -478,7 +507,7 @@ export async function searchEvents(
       `SELECT events.id, events.kind, events.received_at, events.moment, events.message_id,
               events.phone, events.chat_name, events.sender_name, events.from_me, events.is_group,
               events.is_edit, events.event_type, events.message_kind, events.status, events.text,
-              events.payload
+              events.media_url, events.payload
        FROM events
        JOIN events_fts ON events_fts.rowid = events.id
        WHERE ${clauses.join(" AND ")}
@@ -496,5 +525,6 @@ export function eventForClient(event: InboxEvent, env: Env): InboxEvent {
     ...event,
     payload: redactSecrets(event.payload, env),
     text: redactSecrets(event.text, env),
+    mediaUrl: redactSecrets(event.mediaUrl, env),
   };
 }

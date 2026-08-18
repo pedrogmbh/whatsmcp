@@ -14,7 +14,8 @@ Cloudflare D1, and exposes `whatsmcp_history_list` / `whatsmcp_history_get` /
 `whatsmcp_history_search` so clients can read inbound replies. Chat `tags` from
 `GET /chats` (optional string etiqueta ids) are snapshotted separately; filter
 history with `whatsmcp_history_list` `tag=` after `whatsmcp_chats_sync` or a
-webhook on that chat.
+webhook on that chat. Image/audio/document/video links from received webhooks
+are stored as `mediaUrl` (Z-API hosted, ~30 days; not copied to R2).
 
 ## Setup
 

@@ -142,8 +142,9 @@ export async function upsertChatSnapshot(
   await db
     .prepare(
       `INSERT INTO chats (
-        phone, lid, name, unread, pinned, archived, muted, is_spam, is_group, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        phone, lid, name, unread, pinned, archived, muted, is_spam, is_group,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(phone) DO UPDATE SET
         lid = COALESCE(NULLIF(excluded.lid, ''), chats.lid),
         name = excluded.name,
@@ -166,14 +167,28 @@ export async function upsertChatSnapshot(
       flag(chat.isSpam),
       flag(chat.isGroup),
       chat.updatedAt,
+      chat.updatedAt,
     )
     .run();
 
-  await db.prepare("DELETE FROM chat_tags WHERE phone = ?").bind(chat.phone).run();
+  if (chat.tags.length === 0) {
+    await db.prepare("DELETE FROM chat_tags WHERE phone = ?").bind(chat.phone).run();
+    return;
+  }
+
+  const placeholders = chat.tags.map(() => "?").join(", ");
+  await db
+    .prepare(`DELETE FROM chat_tags WHERE phone = ? AND tag NOT IN (${placeholders})`)
+    .bind(chat.phone, ...chat.tags)
+    .run();
   for (const tag of chat.tags) {
     await db
-      .prepare("INSERT INTO chat_tags (phone, tag) VALUES (?, ?)")
-      .bind(chat.phone, tag)
+      .prepare(
+        `INSERT INTO chat_tags (phone, tag, created_at, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(phone, tag) DO UPDATE SET updated_at = excluded.updated_at`,
+      )
+      .bind(chat.phone, tag, chat.updatedAt, chat.updatedAt)
       .run();
   }
 }

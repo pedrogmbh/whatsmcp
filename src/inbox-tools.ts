@@ -63,7 +63,7 @@ export function registerInboxTools(server: McpServer, env: Env): void {
     {
       title: "List inbox history",
       description:
-        "List webhook events stored by WhatsMCP (inbound messages, messages sent by this number when notify-sent-by-me is on, delivery, status, presence, connect/disconnect). fromMe distinguishes ours vs theirs. tag filters by a chat etiqueta id from GET /chats (string, often numeric). Each row includes the chat's current tags snapshot. Use this to read a conversation. zapi_chats_get does not return message text.",
+        "List webhook events stored by WhatsMCP (inbound messages, messages sent by this number when notify-sent-by-me is on, delivery, status, presence, connect/disconnect). fromMe distinguishes ours vs theirs. Media messages include mediaUrl (Z-API image/video/audio/document link, expires in ~30 days). tag filters by a chat etiqueta id from GET /chats (string, often numeric). Each row includes the chat's current tags snapshot. Use this to read a conversation. zapi_chats_get does not return message text.",
       inputSchema: z.object({
         phone: z.string().optional(),
         kind: z.enum(WEBHOOK_KINDS).optional(),
