@@ -1,0 +1,85 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: bun
+          command: deploy --keep-vars
+        env:
+          # wrangler-action dropped Global API key inputs; Wrangler still
+          # accepts the key + email pair via these env vars.
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_ACCOUNT_EMAIL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  notify:
+    name: Notify Pushover
+    needs: deploy
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    environment: Production
+    steps:
+      - name: Send Pushover alert
+        env:
+          PUSHOVER_API_KEY: ${{ secrets.PUSHOVER_API_KEY }}
+          PUSHOVER_GROUP_KEY: ${{ secrets.PUSHOVER_GROUP_KEY }}
+          RESULT: ${{ needs.deploy.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          if [ "$RESULT" = "success" ]; then
+            TITLE="whatsmcp deployed"
+            MESSAGE="Production deploy succeeded. Live at https://whatsmcp.unfld.dev"
+            PRIORITY="0"
+            SOUND="magic"
+          else
+            TITLE="whatsmcp deploy failed"
+            MESSAGE="Production deploy ${RESULT}. Commit ${SHA:0:7} by ${ACTOR}."
+            PRIORITY="1"
+            SOUND="siren"
+          fi
+
+          curl -sS -f \
+            --form-string "token=${PUSHOVER_API_KEY}" \
+            --form-string "user=${PUSHOVER_GROUP_KEY}" \
+            --form-string "title=${TITLE}" \
+            --form-string "message=${MESSAGE}" \
+            --form-string "url=${RUN_URL}" \
+            --form-string "url_title=View GitHub Actions run" \
+            --form-string "priority=${PRIORITY}" \
+            --form-string "sound=${SOUND}" \
+            https://api.pushover.net/1/messages.json
