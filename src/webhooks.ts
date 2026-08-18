@@ -1,9 +1,11 @@
 import { isWebhookAuthorized, unauthorized } from "./auth";
+import { refreshChatSnapshot } from "./chats";
 import { insertEvent, normalizeEvent, WEBHOOK_PATHS } from "./inbox";
 
 export async function handleWebhook(
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   const kind = WEBHOOK_PATHS[url.pathname];
@@ -28,9 +30,10 @@ export async function handleWebhook(
     return Response.json({ error: "invalid json" }, { status: 400 });
   }
 
-  await insertEvent(
-    env.DB,
-    normalizeEvent(kind, body as Record<string, unknown>),
-  );
+  const event = normalizeEvent(kind, body as Record<string, unknown>);
+  await insertEvent(env.DB, event);
+  if (event.phone) {
+    ctx.waitUntil(refreshChatSnapshot(env, event.phone));
+  }
   return Response.json({ ok: true });
 }

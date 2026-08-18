@@ -20,7 +20,7 @@ export default {
     const icon = await servePublicIcon(request);
     if (icon) return icon;
 
-    const webhook = await handleWebhook(request, env);
+    const webhook = await handleWebhook(request, env, ctx);
     if (webhook) return webhook;
 
     if (url.pathname !== "/mcp") {

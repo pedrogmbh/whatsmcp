@@ -11,7 +11,10 @@ even when the toolset filter narrows what gets exposed.
 
 Z-API does not keep message bodies. This Worker also accepts Z-API webhooks, stores events in
 Cloudflare D1, and exposes `whatsmcp_history_list` / `whatsmcp_history_get` /
-`whatsmcp_history_search` so clients can read inbound replies.
+`whatsmcp_history_search` so clients can read inbound replies. Chat `tags` from
+`GET /chats` (optional string etiqueta ids) are snapshotted separately; filter
+history with `whatsmcp_history_list` `tag=` after `whatsmcp_chats_sync` or a
+webhook on that chat.
 
 ## Setup
 

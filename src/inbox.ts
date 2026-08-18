@@ -84,6 +84,7 @@ export interface ListEventsFilter {
   kind?: WebhookKind;
   fromMe?: boolean;
   since?: number;
+  tag?: string;
   limit?: number;
 }
 
@@ -91,6 +92,7 @@ export interface SearchEventsFilter {
   query: string;
   phone?: string;
   kind?: WebhookKind;
+  tag?: string;
   limit?: number;
 }
 
@@ -347,6 +349,10 @@ export async function listEvents(
     clauses.push("moment >= ?");
     values.push(filter.since);
   }
+  if (filter.tag !== undefined && filter.tag !== "") {
+    clauses.push("phone IN (SELECT phone FROM chat_tags WHERE tag = ?)");
+    values.push(filter.tag);
+  }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
   const limit = clampLimit(filter.limit);
@@ -402,6 +408,10 @@ export async function searchEvents(
   if (filter.kind !== undefined) {
     clauses.push("events.kind = ?");
     values.push(filter.kind);
+  }
+  if (filter.tag !== undefined && filter.tag !== "") {
+    clauses.push("events.phone IN (SELECT phone FROM chat_tags WHERE tag = ?)");
+    values.push(filter.tag);
   }
 
   const limit = clampLimit(filter.limit);

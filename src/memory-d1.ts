@@ -30,6 +30,14 @@ class MemoryStatement {
   }
 }
 
+export async function inboxTestSchema(): Promise<string> {
+  const parts = await Promise.all([
+    Bun.file("migrations/0001_events.sql").text(),
+    Bun.file("migrations/0002_chats.sql").text(),
+  ]);
+  return parts.join("\n");
+}
+
 /** In-memory D1 stand-in for `bun:test`. Do not import from the Worker entry. */
 export function createMemoryD1(schemaSql: string): D1Database {
   const db = new Database(":memory:");

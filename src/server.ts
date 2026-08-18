@@ -18,9 +18,9 @@ const HANDLER_OPTIONS = {
 /** Surfaced on initialize. Z-API has no message-history API; Portuguese "Ler" tools mark-as-read. */
 export const SERVER_INSTRUCTIONS = `WhatsMCP is a thin Z-API proxy. Z-API does not store WhatsApp message bodies and has no get-messages endpoint.
 
-You can send with zapi_messages_send_*. zapi_chats_get / zapi_chats_get_by_phone_number return chat metadata (name, unread count, lastMessageTime) — not message text. zapi_messages_read_message marks one message as read and needs a messageId; it does not fetch content. zapi_chats_modify_chat action "read" marks a chat as read; it does not return messages.
+You can send with zapi_messages_send_*. zapi_chats_get / zapi_chats_get_by_phone_number return chat metadata (name, unread count, lastMessageTime) — not message text. Those objects may include an optional tags array of string ids (WhatsApp Business etiquetas / filter indexes; often numeric strings). Resolve names with zapi_business_get_tags. Webhooks do not include tags. zapi_messages_read_message marks one message as read and needs a messageId; it does not fetch content. zapi_chats_modify_chat action "read" marks a chat as read; it does not return messages.
 
-Inbound replies and messages sent by this number (fromMe: true, when Z-API \"Notificar as enviadas por mim também\" is on) arrive at /webhooks/on-message-received and are stored in D1. Use whatsmcp_history_list, whatsmcp_history_get, or whatsmcp_history_search to reconstruct a conversation. Register the six webhook URLs and enable notify-sent-by-me with whatsmcp_register_webhooks (do not use Z-API update-every-webhooks).`;
+Inbound replies and messages sent by this number (fromMe: true, when Z-API \"Notificar as enviadas por mim também\" is on) arrive at /webhooks/on-message-received and are stored in D1. Use whatsmcp_history_list, whatsmcp_history_get, or whatsmcp_history_search to reconstruct a conversation. Filter history by etiqueta with whatsmcp_history_list tag= (chat-level snapshot, not stamped on each event). Refresh snapshots with whatsmcp_chats_sync, or wait for a webhook on that chat (GET /chats/{phone} runs in the background). Register the six webhook URLs and enable notify-sent-by-me with whatsmcp_register_webhooks (do not use Z-API update-every-webhooks).`;
 
 /** Postman titles like "Ler mensagens" look like a fetch. Override the UI label only. */
 const TOOL_TITLE_OVERRIDES: Record<string, string> = {
@@ -30,9 +30,9 @@ const TOOL_TITLE_OVERRIDES: Record<string, string> = {
 
 const TOOL_DESCRIPTION_PREFIXES: Record<string, string> = {
   zapi_chats_get:
-    "Lists chats (name, unread count, lastMessageTime). Does not include message bodies. Z-API does not store message history.\n\n",
+    "Lists chats (name, unread count, lastMessageTime). Objects may include optional tags: string ids of Business etiquetas (often numeric; resolve names with zapi_business_get_tags). Does not include message bodies. Z-API does not store message history.\n\n",
   zapi_chats_get_by_phone_number:
-    "Returns one chat's metadata. Does not include message bodies.\n\n",
+    "Returns one chat's metadata. May include optional tags string ids (Business etiquetas). Does not include message bodies.\n\n",
   zapi_messages_read_message:
     "Marks a message as read. Does not return or list message text. Requires a known messageId.\n\n",
   zapi_chats_modify_chat:

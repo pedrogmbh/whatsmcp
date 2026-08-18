@@ -7,9 +7,10 @@ import {
   normalizeEvent,
   searchEvents,
 } from "./inbox";
-import { createMemoryD1 } from "./memory-d1";
+import { parseChatSnapshot, parseTags, upsertChatSnapshot } from "./chats";
+import { createMemoryD1, inboxTestSchema } from "./memory-d1";
 
-const SCHEMA = await Bun.file("migrations/0001_events.sql").text();
+const SCHEMA = await inboxTestSchema();
 
 function db(): D1Database {
   return createMemoryD1(SCHEMA);
@@ -146,6 +147,15 @@ describe("inbox D1", () => {
     const hits = await searchEvents(d1, { query: "teste", kind: "received" });
     expect(hits).toHaveLength(1);
     expect(hits[0]?.messageId).toBe("MSG-TEXT-1");
+
+    const snapshot = parseChatSnapshot({
+      phone: "5544999999999",
+      tags: ["3"],
+    });
+    await upsertChatSnapshot(d1, snapshot!);
+    const taggedHits = await searchEvents(d1, { query: "teste", tag: "3" });
+    expect(taggedHits).toHaveLength(1);
+    expect(await searchEvents(d1, { query: "teste", tag: "99" })).toHaveLength(0);
   });
 
   test("filters fromMe and since", async () => {
@@ -163,5 +173,40 @@ describe("inbox D1", () => {
     const recent = await listEvents(d1, { since: 1632228800000 });
     expect(recent).toHaveLength(1);
     expect(recent[0]?.messageId).toBe("MSG-IMAGE-1");
+  });
+
+  test("filters history by chat tag snapshot", async () => {
+    const d1 = db();
+    await insertEvent(d1, normalizeEvent("received", TEXT_RECEIVED, 10));
+    await insertEvent(
+      d1,
+      normalizeEvent(
+        "received",
+        { ...IMAGE_RECEIVED, phone: "5511999999999", messageId: "MSG-OTHER" },
+        11,
+      ),
+    );
+
+    const snapshot = parseChatSnapshot({
+      phone: "5544999999999",
+      name: "Bacteria",
+      tags: ["1", 3],
+    });
+    expect(snapshot).not.toBeNull();
+    await upsertChatSnapshot(d1, snapshot!);
+
+    const tagged = await listEvents(d1, { tag: "3" });
+    expect(tagged).toHaveLength(1);
+    expect(tagged[0]?.messageId).toBe("MSG-TEXT-1");
+
+    const empty = await listEvents(d1, { tag: "99" });
+    expect(empty).toHaveLength(0);
+  });
+});
+
+describe("parseTags", () => {
+  test("coerces numeric ids and dedupes", () => {
+    expect(parseTags(["1", 2, "2", " 3 ", "", null])).toEqual(["1", "2", "3"]);
+    expect(parseTags(undefined)).toEqual([]);
   });
 });

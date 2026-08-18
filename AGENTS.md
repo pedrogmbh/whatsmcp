@@ -25,9 +25,10 @@ Rerun `cf-typegen` after changing bindings or vars. Rerun `generate` after chang
 src/index.ts                 Worker fetch: /health, /icon.*, /webhooks/*, /mcp + auth
 src/server.ts                McpServer, tool registration, handler cache
 src/meta-tools.ts            zapi_list_endpoints, zapi_describe_endpoint, zapi_request
-src/inbox-tools.ts           whatsmcp_history_* + whatsmcp_register_webhooks
+src/inbox-tools.ts           whatsmcp_history_* + whatsmcp_chats_sync + whatsmcp_register_webhooks
 src/inbox.ts                 Normalize Z-API payloads; D1 insert/list/search
-src/webhooks.ts              POST /webhooks/* ingest
+src/chats.ts                 Snapshot GET /chats tags; filter history by etiqueta
+src/webhooks.ts              POST /webhooks/* ingest; background chat refresh
 src/zapi.ts                  Instance-relative Z-API client (secrets redacted)
 src/auth.ts                  Bearer MCP token; webhook ?token=
 src/icon.ts                  Public icon URLs + MCP server icons
@@ -53,7 +54,7 @@ Local values go in `.dev.vars`. Production secrets are Wrangler secrets, never `
 | `ZAPI_INSTANCE_TOKEN` | secret | Instance path segment |
 | `ZAPI_CLIENT_TOKEN` | secret | `Client-Token` header |
 | `ZAPI_TOOLSETS` | var | Comma-separated categories, or `*` |
-| `DB` | D1 | Inbox events (`whatsmcp`) |
+| `DB` | D1 | Inbox events + chat tag snapshots (`whatsmcp`) |
 
 `ZAPI_INSTANCE_ID` + `ZAPI_INSTANCE_TOKEN` build the instance base URL. Meta-tools and inbox tools ignore `ZAPI_TOOLSETS`.
 
@@ -61,7 +62,7 @@ Local values go in `.dev.vars`. Production secrets are Wrangler secrets, never `
 
 - Generated tools: one per non-Partners Postman request (`zapi_<category>_…`). Title is the Portuguese `summary` unless overridden.
 - Always registered: `zapi_list_endpoints`, `zapi_describe_endpoint`, `zapi_request` (escape hatch; path must start with `/`, no `..`, no absolute URLs).
-- First-party inbox tools (not generated): `whatsmcp_history_list`, `whatsmcp_history_get`, `whatsmcp_history_search`, `whatsmcp_register_webhooks`.
+- First-party inbox tools (not generated): `whatsmcp_history_list`, `whatsmcp_history_get`, `whatsmcp_history_search`, `whatsmcp_chats_sync`, `whatsmcp_register_webhooks`.
 - Categories: `instance`, `mobile`, `messages`, `privacy`, `contacts`, `chats`, `calls`, `groups`, `communities`, `newsletter`, `status`, `queue`, `business`, `webhooks`.
 - Generator asserts 162 endpoints and per-category counts. Update those constants when the collection changes on purpose. Partners stay excluded (billable instance creation).
 - Do not add hand-written Z-API tools. Change the generator or `postman.json`, then regenerate. Inbox tools are the exception — they are not Z-API wrappers.
@@ -84,6 +85,8 @@ Register each URL separately with `whatsmcp_register_webhooks` or the matching `
 Do not drop `fromMe` received events — they are the conversation side the agent sent.
 
 Events live in D1 `events` (indexed + FTS). Media URLs from Z-API expire in 30 days; v1 does not copy them to R2.
+
+`GET /chats` and `GET /chats/{phone}` may include an optional `tags` array of string ids (WhatsApp Business etiquetas / filter indexes; often numeric strings). Official docs omit this field; live responses include it. Webhooks do not. Snapshot chats in `chats` + `chat_tags` (not stamped on each event). Filter with `whatsmcp_history_list` `tag=`. Call `whatsmcp_chats_sync` to page `/chats`, or wait for a webhook (background `GET /chats/{phone}`). Resolve names with `zapi_business_get_tags`.
 
 ## MCP metadata
 
