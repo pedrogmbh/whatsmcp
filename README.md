@@ -42,6 +42,8 @@ Authorization: <MCP_AUTH_TOKEN>
 ```
 
 `GET /health` is public and returns `{ "ok": true, "name": "whatsmcp" }`.
+`GET /icon.png` and `GET /icon.svg` are also public (the MCP server advertises them
+as its icons).
 
 ## Scripts
 
@@ -91,4 +93,5 @@ Cloudflare on first deploy.
 
 Both `Authorization: Bearer <MCP_AUTH_TOKEN>` and the bare
 `Authorization: <MCP_AUTH_TOKEN>` form are accepted. `GET /health` is public
-and unauthenticated for uptime checks.
+and unauthenticated for uptime checks. The server icon is at
+`https://whatsmcp.unfld.dev/icon.png` (SVG at `/icon.svg`).

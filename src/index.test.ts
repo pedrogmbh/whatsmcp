@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ICON_SVG } from "./icon";
 import worker from "./index";
 
 const ENV: Env = {
@@ -46,5 +47,34 @@ describe("Worker fetch", () => {
       CTX,
     );
     expect(response.status).toBe(404);
+  });
+
+  test("GET /icon.svg is public", async () => {
+    const response = await worker.fetch(
+      new Request("https://whatsmcp.unfld.dev/icon.svg"),
+      ENV,
+      CTX,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("image/svg+xml");
+    const svg = await response.text();
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("#25D366");
+    expect(svg).toBe(ICON_SVG);
+    expect(await Bun.file("public/icon.svg").text()).toBe(ICON_SVG);
+  });
+
+  test("GET /icon.png is public", async () => {
+    const response = await worker.fetch(
+      new Request("https://whatsmcp.unfld.dev/icon.png"),
+      ENV,
+      CTX,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    expect(bytes.subarray(0, 8)).toEqual(
+      Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a),
+    );
   });
 });

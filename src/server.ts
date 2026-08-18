@@ -2,6 +2,7 @@ import { fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
 import { createMcpHandler } from "agents/mcp/server";
 import { ENDPOINTS } from "./generated/endpoints";
+import { PUBLIC_ORIGIN, SERVER_ICONS } from "./icon";
 import { registerMetaTools } from "./meta-tools";
 import { callZapi, ZapiError } from "./zapi";
 
@@ -39,6 +40,8 @@ export function createServer(env: Env): McpServer {
   const server = new McpServer({
     name: "whatsmcp",
     version: "1.0.0",
+    websiteUrl: PUBLIC_ORIGIN,
+    icons: SERVER_ICONS,
   });
 
   const filter = selectedCategories(env.ZAPI_TOOLSETS);

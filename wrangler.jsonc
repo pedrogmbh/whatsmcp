@@ -7,6 +7,13 @@
   "observability": {
     "enabled": true
   },
+  "rules": [
+    {
+      "type": "Data",
+      "globs": ["**/*.png"],
+      "fallthrough": true
+    }
+  ],
   "routes": [
     {
       "pattern": "whatsmcp.unfld.dev",

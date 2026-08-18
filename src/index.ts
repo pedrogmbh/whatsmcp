@@ -1,4 +1,5 @@
 import { isAuthorized, unauthorized } from "./auth";
+import { servePublicIcon } from "./icon";
 import { createHandler } from "./server";
 
 const mcp = createHandler();
@@ -14,6 +15,9 @@ export default {
     if (url.pathname === "/health" && request.method === "GET") {
       return Response.json({ ok: true, name: "whatsmcp" });
     }
+
+    const icon = await servePublicIcon(request);
+    if (icon) return icon;
 
     if (url.pathname !== "/mcp") {
       return new Response("Not Found", { status: 404 });
