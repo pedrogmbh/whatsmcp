@@ -39,6 +39,8 @@ function toolError(error: unknown): {
 export function createServer(env: Env): McpServer {
   const server = new McpServer({
     name: "whatsmcp",
+    title: "WhatsMCP",
+    description: "Z-API WhatsApp MCP server",
     version: "1.0.0",
     websiteUrl: PUBLIC_ORIGIN,
     icons: SERVER_ICONS,
