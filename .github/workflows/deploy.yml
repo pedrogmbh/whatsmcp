@@ -29,13 +29,36 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # CLOUDFLARE_API_KEY is an API token with Workers edit, not Zone
+      # routes. `wrangler deploy` uploads the script then fails attaching
+      # whatsmcp.unfld.dev (error 10000). Version upload + deploy updates
+      # production without mutating zone custom domains.
       - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_KEY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager: bun
-          command: deploy --keep-vars
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          bunx wrangler versions upload --keep-vars --message "${GITHUB_SHA}"
+
+          VERSION_ID="$(
+            bunx wrangler versions list --json | bun -e '
+              const versions = await Bun.stdin.json();
+              if (!Array.isArray(versions) || versions.length === 0) {
+                console.error("wrangler versions list returned no versions");
+                process.exit(1);
+              }
+              const latest = versions[versions.length - 1];
+              if (!latest?.id) {
+                console.error("latest version is missing an id");
+                process.exit(1);
+              }
+              console.log(latest.id);
+            '
+          )"
+
+          bunx wrangler versions deploy "${VERSION_ID}@100" --yes
 
   notify:
     name: Notify Pushover
