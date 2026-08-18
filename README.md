@@ -4,7 +4,7 @@ A stateless [MCP](https://modelcontextprotocol.io) server on Cloudflare Workers 
 [Z-API](https://developer.z-api.io) WhatsApp REST API as tools, served over Streamable HTTP at
 `https://whatsmcp.unfld.dev/mcp`.
 
-Tools are generated at build time from `postman-collection-z-api.json`, so the tool surface tracks
+Tools are generated at build time from `postman.json`, so the tool surface tracks
 the collection rather than being hand-maintained. Three meta-tools (`zapi_list_endpoints`,
 `zapi_describe_endpoint`, `zapi_request`) are always registered, so no endpoint is ever unreachable
 even when the toolset filter narrows what gets exposed.

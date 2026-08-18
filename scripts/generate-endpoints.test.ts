@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { lenientParse } from "./generate-endpoints";
 
-const COLLECTION_PATH = resolve(import.meta.dir, "../postman-collection-z-api.json");
+const COLLECTION_PATH = resolve(import.meta.dir, "../postman.json");
 
 const SEND_TEXT_BODY = `{
     "phone": "554499999999",
