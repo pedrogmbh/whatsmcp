@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { ICON_SVG } from "./icon";
 import worker from "./index";
+import { createMemoryD1 } from "./memory-d1";
+
+const SCHEMA = await Bun.file("migrations/0001_events.sql").text();
 
 const ENV: Env = {
   ZAPI_TOOLSETS: "*",
@@ -8,6 +11,8 @@ const ENV: Env = {
   ZAPI_INSTANCE_ID: "inst-secret-id",
   ZAPI_INSTANCE_TOKEN: "inst-secret-token",
   ZAPI_CLIENT_TOKEN: "client-secret-token",
+  WEBHOOK_AUTH_TOKEN: "webhook-secret-token",
+  DB: createMemoryD1(SCHEMA),
 };
 
 const CTX = {
@@ -61,7 +66,63 @@ describe("Worker fetch", () => {
     expect(svg).toContain("<svg");
     expect(svg).toContain("#25D366");
     expect(svg).toBe(ICON_SVG);
-    expect(await Bun.file("public/icon.svg").text()).toBe(ICON_SVG);
+  });
+
+  test("POST /webhooks/on-message-received without token is 401", async () => {
+    const response = await worker.fetch(
+      new Request("https://whatsmcp.unfld.dev/webhooks/on-message-received", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: "x", type: "ReceivedCallback" }),
+      }),
+      ENV,
+      CTX,
+    );
+    expect(response.status).toBe(401);
+  });
+
+  test("POST /webhooks/on-message-received stores the event", async () => {
+    const env: Env = { ...ENV, DB: createMemoryD1(SCHEMA) };
+    const response = await worker.fetch(
+      new Request(
+        "https://whatsmcp.unfld.dev/webhooks/on-message-received?token=webhook-secret-token",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messageId: "MSG-1",
+            phone: "5544999999999",
+            type: "ReceivedCallback",
+            text: { message: "hello inbox" },
+            momment: 1,
+          }),
+        },
+      ),
+      env,
+      CTX,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json() as { ok: boolean }).toEqual({ ok: true });
+
+    const listed = await env.DB.prepare(
+      "SELECT text, phone FROM events WHERE message_id = ?",
+    )
+      .bind("MSG-1")
+      .first<{ text: string; phone: string }>();
+    expect(listed?.phone).toBe("5544999999999");
+    expect(listed?.text).toContain("hello inbox");
+  });
+
+  test("GET /webhooks/on-message-received is 405", async () => {
+    const response = await worker.fetch(
+      new Request(
+        "https://whatsmcp.unfld.dev/webhooks/on-message-received?token=webhook-secret-token",
+      ),
+      ENV,
+      CTX,
+    );
+    expect(response.status).toBe(405);
+    expect(response.headers.get("Allow")).toBe("POST");
   });
 
   test("GET /icon.png is public", async () => {

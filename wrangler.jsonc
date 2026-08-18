@@ -24,7 +24,16 @@
     // Comma-separated Z-API categories to register as tools; "*" registers all.
     // The three zapi_* meta-tools ignore this filter and are always available.
     "ZAPI_TOOLSETS": "*"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "whatsmcp",
+      "database_id": "554fa7b6-27a6-47d1-9480-b9d5a4b0d2ac",
+      "migrations_dir": "migrations"
+    }
+  ]
   // Secrets (never in this file): MCP_AUTH_TOKEN, ZAPI_INSTANCE_ID,
-  // ZAPI_INSTANCE_TOKEN, ZAPI_CLIENT_TOKEN. Local values live in .dev.vars.
+  // ZAPI_INSTANCE_TOKEN, ZAPI_CLIENT_TOKEN, WEBHOOK_AUTH_TOKEN.
+  // Local values live in .dev.vars.
 }

@@ -14,6 +14,17 @@ function presentedToken(header: string): string {
   return header.startsWith("Bearer ") ? header.slice("Bearer ".length) : header;
 }
 
+/** Query `?token=` for Z-API webhooks (they cannot send Authorization). */
+export function isWebhookAuthorized(
+  url: URL,
+  token: string | undefined,
+): boolean {
+  if (!token) return false;
+  const presented = url.searchParams.get("token");
+  if (presented === null) return false;
+  return timingSafeEqual(presented, token);
+}
+
 /** Accepts `Authorization: <token>` and `Authorization: Bearer <token>`. */
 export function isAuthorized(
   request: Request,

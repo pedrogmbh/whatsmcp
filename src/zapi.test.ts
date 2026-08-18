@@ -10,6 +10,8 @@ const ENV: Env = {
   ZAPI_INSTANCE_ID: "inst-secret-id",
   ZAPI_INSTANCE_TOKEN: "inst-secret-token",
   ZAPI_CLIENT_TOKEN: "client-secret-token",
+  WEBHOOK_AUTH_TOKEN: "webhook-secret-token",
+  DB: {} as D1Database,
 };
 
 function endpoint(name: string) {

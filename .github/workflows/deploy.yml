@@ -40,6 +40,8 @@ jobs:
         run: |
           set -euo pipefail
 
+          bunx wrangler d1 migrations apply whatsmcp --remote
+
           bunx wrangler versions upload --keep-vars --message "${GITHUB_SHA}"
 
           VERSION_ID="$(

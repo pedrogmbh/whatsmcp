@@ -1,6 +1,6 @@
 # whatsmcp
 
-A stateless [MCP](https://modelcontextprotocol.io) server on Cloudflare Workers that exposes the
+An [MCP](https://modelcontextprotocol.io) server on Cloudflare Workers that exposes the
 [Z-API](https://developer.z-api.io) WhatsApp REST API as tools, served over Streamable HTTP at
 `https://whatsmcp.unfld.dev/mcp`.
 
@@ -8,6 +8,10 @@ Tools are generated at build time from `postman.json`, so the tool surface track
 the collection rather than being hand-maintained. Three meta-tools (`zapi_list_endpoints`,
 `zapi_describe_endpoint`, `zapi_request`) are always registered, so no endpoint is ever unreachable
 even when the toolset filter narrows what gets exposed.
+
+Z-API does not keep message bodies. This Worker also accepts Z-API webhooks, stores events in
+Cloudflare D1, and exposes `whatsmcp_history_list` / `whatsmcp_history_get` /
+`whatsmcp_history_search` so clients can read inbound replies.
 
 ## Setup
 
@@ -19,6 +23,7 @@ Create `.dev.vars` in the repo root (gitignored) with your Z-API credentials:
 
 ```ini
 MCP_AUTH_TOKEN=...
+WEBHOOK_AUTH_TOKEN=...
 ZAPI_INSTANCE_ID=...
 ZAPI_INSTANCE_TOKEN=...
 ZAPI_CLIENT_TOKEN=...
@@ -26,6 +31,7 @@ ZAPI_CLIENT_TOKEN=...
 
 `ZAPI_INSTANCE_ID` and `ZAPI_INSTANCE_TOKEN` build the instance base URL; `ZAPI_CLIENT_TOKEN` is sent
 as the `Client-Token` header. `MCP_AUTH_TOKEN` is the static bearer token clients must present.
+`WEBHOOK_AUTH_TOKEN` is the query token on webhook URLs (`?token=`).
 
 ## Local run
 
@@ -44,6 +50,23 @@ Authorization: <MCP_AUTH_TOKEN>
 `GET /health` is public and returns `{ "ok": true, "name": "whatsmcp" }`.
 `GET /icon.png` and `GET /icon.svg` are also public (the MCP server advertises them
 as its icons).
+
+Webhook ingest (HTTPS only; Z-API will not call local `http://`):
+
+```
+POST /webhooks/on-message-sent?token=<WEBHOOK_AUTH_TOKEN>
+POST /webhooks/on-message-received?token=<WEBHOOK_AUTH_TOKEN>
+POST /webhooks/on-disconnect?token=<WEBHOOK_AUTH_TOKEN>
+POST /webhooks/on-connect?token=<WEBHOOK_AUTH_TOKEN>
+POST /webhooks/on-message-status-received?token=<WEBHOOK_AUTH_TOKEN>
+POST /webhooks/on-chat-presence?token=<WEBHOOK_AUTH_TOKEN>
+```
+
+Register those six URLs separately (the `whatsmcp_register_webhooks` tool does this).
+Also enable **Notificar as enviadas por mim também** on the received webhook (the register
+tool turns this on) so messages you send are stored with `fromMe: true` and show up in
+history next to inbound replies.
+Do not use Z-API `update-every-webhooks` — it points every event type at one URL.
 
 ## Scripts
 
@@ -69,9 +92,11 @@ Secrets are not stored in `wrangler.jsonc`. Set them once per environment:
 
 ```bash
 wrangler secret put MCP_AUTH_TOKEN
+wrangler secret put WEBHOOK_AUTH_TOKEN
 wrangler secret put ZAPI_INSTANCE_ID
 wrangler secret put ZAPI_INSTANCE_TOKEN
 wrangler secret put ZAPI_CLIENT_TOKEN
+wrangler d1 migrations apply whatsmcp --remote
 wrangler deploy
 ```
 

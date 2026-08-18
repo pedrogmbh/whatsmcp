@@ -19,12 +19,14 @@ export class ZapiError extends Error {
   }
 }
 
-function redactSecrets(text: string, env: Env): string {
+export function redactSecrets(text: string, env: Env): string {
   let out = text;
   for (const secret of [
     env.ZAPI_INSTANCE_ID,
     env.ZAPI_INSTANCE_TOKEN,
     env.ZAPI_CLIENT_TOKEN,
+    env.MCP_AUTH_TOKEN,
+    env.WEBHOOK_AUTH_TOKEN,
   ]) {
     if (secret) out = out.split(secret).join("[redacted]");
   }

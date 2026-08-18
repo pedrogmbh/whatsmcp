@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isAuthorized, unauthorized } from "./auth";
+import { isAuthorized, isWebhookAuthorized, unauthorized } from "./auth";
 
 const TOKEN = "NOSCETEIPSUM";
 
@@ -30,6 +30,34 @@ describe("isAuthorized", () => {
     expect(isAuthorized(request(TOKEN), "")).toBe(false);
     expect(isAuthorized(request(TOKEN), undefined)).toBe(false);
     expect(isAuthorized(request(`Bearer ${TOKEN}`), "")).toBe(false);
+  });
+});
+
+describe("isWebhookAuthorized", () => {
+  test("accepts a matching token query param", () => {
+    expect(
+      isWebhookAuthorized(
+        new URL("https://whatsmcp.unfld.dev/webhooks/on-message-received?token=secret"),
+        "secret",
+      ),
+    ).toBe(true);
+  });
+
+  test("rejects a missing, wrong, or unset token", () => {
+    const url = new URL("https://whatsmcp.unfld.dev/webhooks/on-message-received?token=nope");
+    expect(isWebhookAuthorized(url, "secret")).toBe(false);
+    expect(
+      isWebhookAuthorized(
+        new URL("https://whatsmcp.unfld.dev/webhooks/on-message-received"),
+        "secret",
+      ),
+    ).toBe(false);
+    expect(
+      isWebhookAuthorized(
+        new URL("https://whatsmcp.unfld.dev/webhooks/on-message-received?token=secret"),
+        undefined,
+      ),
+    ).toBe(false);
   });
 });
 

@@ -1,6 +1,7 @@
 import { isAuthorized, unauthorized } from "./auth";
 import { servePublicIcon } from "./icon";
 import { createHandler } from "./server";
+import { handleWebhook } from "./webhooks";
 
 const mcp = createHandler();
 
@@ -18,6 +19,9 @@ export default {
 
     const icon = await servePublicIcon(request);
     if (icon) return icon;
+
+    const webhook = await handleWebhook(request, env);
+    if (webhook) return webhook;
 
     if (url.pathname !== "/mcp") {
       return new Response("Not Found", { status: 404 });
